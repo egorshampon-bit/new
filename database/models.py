@@ -67,6 +67,18 @@ async def init_db():
                 active_channel_id INTEGER
             );
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                is_admin INTEGER NOT NULL DEFAULT 0,
+                is_blocked INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
         await conn.commit()
     logger.info("Database initialized successfully.")
 
@@ -324,3 +336,133 @@ async def clear_channel_queue(channel_id: int) -> int:
         )
         await conn.commit()
         return cursor.rowcount
+
+
+# User and Admin management
+async def add_or_update_user(
+    user_id: int,
+    username: Optional[str] = None,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None
+):
+    async with get_db() as conn:
+        await conn.execute(
+            """
+            INSERT INTO users (user_id, username, first_name, last_name, last_active_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                username = excluded.username,
+                first_name = excluded.first_name,
+                last_name = excluded.last_name,
+                is_blocked = 0,
+                last_active_at = CURRENT_TIMESTAMP;
+            """,
+            (user_id, username, first_name, last_name)
+        )
+        await conn.commit()
+
+
+async def set_user_admin(user_id: int, is_admin: int = 1):
+    async with get_db() as conn:
+        await conn.execute(
+            """
+            INSERT INTO users (user_id, is_admin)
+            VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET is_admin = excluded.is_admin;
+            """,
+            (user_id, is_admin)
+        )
+        await conn.commit()
+
+
+async def is_user_admin(user_id: int) -> bool:
+    if config.ADMIN_IDS and user_id in config.ADMIN_IDS:
+        return True
+    async with get_db() as conn:
+        cursor = await conn.execute(
+            "SELECT is_admin FROM users WHERE user_id = ?;",
+            (user_id,)
+        )
+        row = await cursor.fetchone()
+        return bool(row and row[0] == 1)
+
+
+async def get_admin_stats() -> Dict[str, Any]:
+    async with get_db() as conn:
+        # Total users
+        cursor = await conn.execute("SELECT COUNT(*) FROM users;")
+        total_users = (await cursor.fetchone())[0]
+
+        # New users today
+        cursor = await conn.execute(
+            "SELECT COUNT(*) FROM users WHERE date(created_at) = date('now');"
+        )
+        new_today = (await cursor.fetchone())[0]
+
+        # New users this week (last 7 days)
+        cursor = await conn.execute(
+            "SELECT COUNT(*) FROM users WHERE datetime(created_at) >= datetime('now', '-7 days');"
+        )
+        new_week = (await cursor.fetchone())[0]
+
+        # Active in last 24h
+        cursor = await conn.execute(
+            "SELECT COUNT(*) FROM users WHERE datetime(last_active_at) >= datetime('now', '-1 day');"
+        )
+        active_24h = (await cursor.fetchone())[0]
+
+        # Channels count
+        cursor = await conn.execute("SELECT COUNT(*) FROM channels;")
+        total_channels = (await cursor.fetchone())[0]
+
+        # Posts published
+        cursor = await conn.execute("SELECT COUNT(*) FROM posts WHERE status = 'published';")
+        posts_published = (await cursor.fetchone())[0]
+
+        # Posts pending
+        cursor = await conn.execute("SELECT COUNT(*) FROM posts WHERE status = 'pending';")
+        posts_pending = (await cursor.fetchone())[0]
+
+        return {
+            "total_users": total_users,
+            "new_today": new_today,
+            "new_week": new_week,
+            "active_24h": active_24h,
+            "total_channels": total_channels,
+            "posts_published": posts_published,
+            "posts_pending": posts_pending,
+        }
+
+
+async def get_all_broadcast_users() -> List[int]:
+    async with get_db() as conn:
+        cursor = await conn.execute(
+            "SELECT user_id FROM users WHERE is_blocked = 0;"
+        )
+        rows = await cursor.fetchall()
+        return [r[0] for r in rows]
+
+
+async def mark_user_blocked(user_id: int):
+    async with get_db() as conn:
+        await conn.execute(
+            "UPDATE users SET is_blocked = 1 WHERE user_id = ?;",
+            (user_id,)
+        )
+        await conn.commit()
+
+
+async def get_recent_users(limit: int = 15) -> List[Dict[str, Any]]:
+    async with get_db() as conn:
+        cursor = await conn.execute(
+            """
+            SELECT user_id, username, first_name, is_admin, created_at, last_active_at
+            FROM users
+            ORDER BY datetime(last_active_at) DESC
+            LIMIT ?;
+            """,
+            (limit,)
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+

@@ -81,3 +81,40 @@ def get_cancel_connect_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="◀️ Отмена", callback_data="menu_channels")]
         ]
     )
+
+
+def get_admin_main_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📊 Статистика бота", callback_data="admin_stats")],
+            [InlineKeyboardButton(text="📢 Сделать рассылку", callback_data="admin_broadcast")],
+            [InlineKeyboardButton(text="👥 Список пользователей", callback_data="admin_users")],
+            [InlineKeyboardButton(text="🚪 Выйти из админки", callback_data="admin_exit")]
+        ]
+    )
+
+
+def get_admin_stats_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Обновить", callback_data="admin_stats")],
+            [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="admin_menu")]
+        ]
+    )
+
+
+def get_admin_broadcast_confirm_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🚀 Запустить рассылку", callback_data="admin_bc_start")],
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="admin_bc_cancel")]
+        ]
+    )
+
+
+def get_admin_back_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="admin_menu")]
+        ]
+    )

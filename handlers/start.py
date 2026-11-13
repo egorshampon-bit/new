@@ -4,7 +4,7 @@ from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 
-from database import get_user_channels
+from database import get_user_channels, add_or_update_user
 from keyboards import get_main_menu_keyboard, get_channels_list_keyboard
 
 router = Router()
@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
+    await add_or_update_user(
+        user_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
+        last_name=message.from_user.last_name
+    )
     welcome_text = (
         "<b>Добро пожаловать!</b>\n\n"
         "Этот бот предназначен для автоматизации постинга контента в каналы и чаты "

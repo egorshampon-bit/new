@@ -11,6 +11,10 @@ from keyboards.inline import (
     get_caption_actions_keyboard,
     get_queue_actions_keyboard,
     get_cancel_connect_keyboard,
+    get_admin_main_keyboard,
+    get_admin_stats_keyboard,
+    get_admin_broadcast_confirm_keyboard,
+    get_admin_back_keyboard,
 )
 
 __all__ = [
@@ -24,4 +28,8 @@ __all__ = [
     "get_caption_actions_keyboard",
     "get_queue_actions_keyboard",
     "get_cancel_connect_keyboard",
+    "get_admin_main_keyboard",
+    "get_admin_stats_keyboard",
+    "get_admin_broadcast_confirm_keyboard",
+    "get_admin_back_keyboard",
 ]

@@ -9,7 +9,7 @@ from aiogram.client.default import DefaultBotProperties
 from config import BOT_TOKEN, ADMIN_IDS
 from database import init_db
 from middlewares.album import AlbumMiddleware
-from handlers import start_router, channel_router, planner_router
+from handlers import start_router, channel_router, planner_router, admin_router
 from services.scheduler import run_scheduler_worker
 
 logging.basicConfig(
@@ -25,6 +25,7 @@ def create_dispatcher() -> Dispatcher:
     dp.message.middleware(AlbumMiddleware(latency=0.6))
 
     # Register routers
+    dp.include_router(admin_router)
     dp.include_router(start_router)
     dp.include_router(channel_router)
     dp.include_router(planner_router)

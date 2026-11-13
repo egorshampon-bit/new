@@ -17,6 +17,13 @@ from database.models import (
     mark_post_failed,
     get_channel_queue_preview,
     clear_channel_queue,
+    add_or_update_user,
+    set_user_admin,
+    is_user_admin,
+    get_admin_stats,
+    get_all_broadcast_users,
+    mark_user_blocked,
+    get_recent_users,
 )
 
 __all__ = [
@@ -38,4 +45,11 @@ __all__ = [
     "mark_post_failed",
     "get_channel_queue_preview",
     "clear_channel_queue",
+    "add_or_update_user",
+    "set_user_admin",
+    "is_user_admin",
+    "get_admin_stats",
+    "get_all_broadcast_users",
+    "mark_user_blocked",
+    "get_recent_users",
 ]
