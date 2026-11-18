@@ -283,6 +283,40 @@ async def get_due_posts(current_iso: str) -> List[Dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
+async def claim_post_for_publishing(post_id: int) -> bool:
+    """
+    Atomically claims a pending post for publishing by changing its status to 'publishing'.
+    Guarantees no two worker cycles or instances ever publish the same post.
+    """
+    async with get_db() as conn:
+        cursor = await conn.execute(
+            """
+            UPDATE posts
+            SET status = 'publishing'
+            WHERE id = ? AND status = 'pending';
+            """,
+            (post_id,)
+        )
+        await conn.commit()
+        return cursor.rowcount > 0
+
+
+async def get_occupied_slots(channel_id: int) -> set:
+    """
+    Returns a set of ISO timestamps of all posts currently scheduled or being published in the channel.
+    """
+    async with get_db() as conn:
+        cursor = await conn.execute(
+            """
+            SELECT publish_at FROM posts
+            WHERE channel_id = ? AND status IN ('pending', 'publishing');
+            """,
+            (channel_id,)
+        )
+        rows = await cursor.fetchall()
+        return {r[0] for r in rows if r[0]}
+
+
 async def mark_post_published(post_id: int, message_id: Optional[int] = None):
     async with get_db() as conn:
         await conn.execute(

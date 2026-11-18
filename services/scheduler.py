@@ -18,6 +18,7 @@ from aiogram.exceptions import TelegramRetryAfter, TelegramAPIError
 from config import TIMEZONE, POLL_INTERVAL_SECONDS
 from database import (
     get_due_posts,
+    claim_post_for_publishing,
     mark_post_published,
     mark_post_failed,
 )
@@ -56,10 +57,12 @@ def parse_time_slots(text: str) -> List[str]:
 def calculate_next_slot(
     schedule_slots: List[str],
     last_post_iso: Optional[str] = None,
+    occupied_slots: Optional[set] = None,
     tz_name: Optional[str] = None
 ) -> Tuple[datetime, str]:
     """
     Calculates the next available slot for a channel based on its schedule.
+    Guarantees no collisions with occupied_slots (never schedules 2 posts to the same slot).
     Returns (slot_datetime_in_tz, formatted_display_string).
     """
     tz = zoneinfo.ZoneInfo(tz_name or TIMEZONE)
@@ -77,6 +80,24 @@ def calculate_next_slot(
 
     parsed_slots.sort()
 
+    # Normalize occupied slots into "YYYY-MM-DD HH:MM" strings in target tz
+    occupied_normalized = set()
+    if occupied_slots:
+        for item in occupied_slots:
+            if isinstance(item, str):
+                try:
+                    dt = datetime.fromisoformat(item)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=tz)
+                    else:
+                        dt = dt.astimezone(tz)
+                    occupied_normalized.add(dt.strftime("%Y-%m-%d %H:%M"))
+                except Exception:
+                    pass
+            elif isinstance(item, datetime):
+                dt = item if item.tzinfo else item.replace(tzinfo=tz)
+                occupied_normalized.add(dt.astimezone(tz).strftime("%Y-%m-%d %H:%M"))
+
     # If no schedule is configured, post immediately (now + 5 seconds)
     if not parsed_slots:
         immediate_dt = now + timedelta(seconds=5)
@@ -85,10 +106,11 @@ def calculate_next_slot(
     start_from = now
     if last_post_iso:
         try:
-            # Try parsing ISO
             last_dt = datetime.fromisoformat(last_post_iso)
             if last_dt.tzinfo is None:
                 last_dt = last_dt.replace(tzinfo=tz)
+            else:
+                last_dt = last_dt.astimezone(tz)
             if last_dt > now:
                 start_from = last_dt
         except Exception as e:
@@ -103,7 +125,8 @@ def calculate_next_slot(
         test_date = current_date + timedelta(days=day_offset)
         for h, m in parsed_slots:
             candidate = datetime(test_date.year, test_date.month, test_date.day, h, m, 0, tzinfo=tz)
-            if candidate >= min_future:
+            cand_key = candidate.strftime("%Y-%m-%d %H:%M")
+            if candidate >= min_future and cand_key not in occupied_normalized:
                 return candidate, candidate.strftime("%d.%m.%Y %H:%M")
 
     # Fallback
@@ -221,6 +244,11 @@ async def run_scheduler_worker(bot: Bot):
             if due_posts:
                 logger.info(f"Found {len(due_posts)} due posts ready for publication.")
                 for post in due_posts:
+                    # Atomically claim post to guarantee it is published exactly once
+                    claimed = await claim_post_for_publishing(post["id"])
+                    if not claimed:
+                        logger.info(f"Post #{post['id']} already claimed or published. Skipping.")
+                        continue
                     await publish_single_post(bot, post)
                     # Gentle throttle between posts
                     await asyncio.sleep(1.0)
